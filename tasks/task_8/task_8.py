@@ -6,6 +6,7 @@ sys.path.append(os.path.abspath('../../'))
 from tasks.task_3.task_3 import DocumentProcessor
 from tasks.task_4.task_4 import EmbeddingClient
 from tasks.task_5.task_5 import ChromaCollectionCreator
+from langchain_core.output_parsers import JsonOutputParser
 
 from langchain_core.prompts import PromptTemplate
 from langchain_google_vertexai import VertexAI
@@ -53,7 +54,7 @@ class QuizGenerator:
                 "answer": "<answer key from choices list>",
                 "explanation": "<explanation as to why the answer is correct>"
             }}
-            
+            {format_instructions}
             Context: {context}
             """
     
@@ -86,18 +87,25 @@ class QuizGenerator:
         from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 
         # Enable a Retriever
-        retriever = self.vectorstore.as_retriever()
-        
+        retriever = self.vectorstore.get_retriever()
+        parser = JsonOutputParser()
+
         # Use the system template to create a PromptTemplate
-        prompt = PromptTemplate.from_template(self.system_template)
-        
+        # prompt = PromptTemplate.from_template(self.system_template)
+        # prompt = PromptTemplate(
+        #     template=self.system_template,
+        #     partial_variables={"format_instructions": parser.get_format_instructions()}
+        #     )
+        prompt = PromptTemplate.from_template(template=self.system_template,
+                                              partial_variables={"format_instructions": parser.get_format_instructions()}
+            )
         # RunnableParallel allows Retriever to get relevant documents
         # RunnablePassthrough allows chain.invoke to send self.topic to LLM
         setup_and_retrieval = RunnableParallel(
             {"context": retriever, "topic": RunnablePassthrough()}
         )
         # Create a chain with the Retriever, PromptTemplate, and LLM
-        chain = setup_and_retrieval | prompt | self.llm 
+        chain = setup_and_retrieval | prompt | self.llm | parser
 
         # Invoke the chain with the topic as input
         response = chain.invoke(self.topic)
@@ -123,23 +131,25 @@ class QuizGenerator:
         """
         self.question_bank = [] # Reset the question bank
 
-        for _ in range(self.num_questions):
+        for num in range(self.num_questions):
             ##### YOUR CODE HERE #####
-            question_str = # Use class method to generate question
+            question = self.generate_question_with_vectorstore() # Use class method to generate question
             
-            ##### YOUR CODE HERE #####
-            try:
-                # Convert the JSON String to a dictionary
-            except json.JSONDecodeError:
-                print("Failed to decode question JSON.")
-                continue  # Skip this iteration if JSON decoding fails
-            ##### YOUR CODE HERE #####
+            # ##### YOUR CODE HERE #####
+            # try:
+            #     # Convert the JSON String to a dictionary
+            #     question = json.loads(question_str)[0]
+            # except json.JSONDecodeError:
+            #     print("Failed to decode question JSON.")
+            #     continue  # Skip this iteration if JSON decoding fails
+            # ##### YOUR CODE HERE #####
 
-            ##### YOUR CODE HERE #####
+            ##### YOUR CODE HERE #####  
             # Validate the question using the validate_question method
             if self.validate_question(question):
                 print("Successfully generated unique question")
                 # Add the valid and unique question to the bank
+                self.question_bank.append(question)
             else:
                 print("Duplicate or invalid question detected.")
             ##### YOUR CODE HERE #####
@@ -168,9 +178,15 @@ class QuizGenerator:
         """
         ##### YOUR CODE HERE #####
         # Consider missing 'question' key as invalid in the dict object
+        if 'question' not in question:
+            return False 
+        question_text = question['question']
         # Check if a question with the same text already exists in the self.question_bank
         ##### YOUR CODE HERE #####
-        return is_unique
+        for existing_question in self.question_bank:
+            if existing_question['question'] == question_text:
+                    return False  # Duplicate question detected
+        return True # Question is unique
 
 
 # Test Generating the Quiz
@@ -178,7 +194,7 @@ if __name__ == "__main__":
     
     embed_config = {
         "model_name": "textembedding-gecko@003",
-        "project": "YOUR-PROJECT-ID-HERE",
+        "project": "gemini-quizify-426600",
         "location": "us-central1"
     }
     
