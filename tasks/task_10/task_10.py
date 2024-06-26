@@ -64,7 +64,7 @@ if __name__ == "__main__":
                     st.session_state['question_bank'] = question_bank
                     st.session_state['display_quiz'] = True
                     st.session_state['question_index'] = 0
-                    st.experimental_rerun()
+                    st.rerun()
 
 
     elif st.session_state["display_quiz"]:
